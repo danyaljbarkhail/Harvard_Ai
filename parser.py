@@ -34,8 +34,13 @@ parser = nltk.ChartParser(grammar)
 def main():
     # If filename specified, read sentence from file
     if len(sys.argv) == 2:
-        with open(sys.argv[1]) as f:
-            s = f.read()
+        try:
+            with open(sys.argv[1]) as f:
+                s = f.read()
+        except FileNotFoundError:
+            sys.exit(f"File '{sys.argv[1]}' not found.")
+        except Exception as e:
+            sys.exit(f"Error reading file '{sys.argv[1]}': {e}")
 
     # Otherwise, get sentence as input
     else:
@@ -48,7 +53,7 @@ def main():
     try:
         trees = list(parser.parse(s))
     except ValueError as e:
-        print(e)
+        print(f"Parsing error: {e}")
         return
     if not trees:
         print("Could not parse sentence.")
@@ -94,4 +99,3 @@ def np_chunk(tree):
 
 if __name__ == "__main__":
     main()
-
