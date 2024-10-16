@@ -1,9 +1,9 @@
-import cv2 as cv
+import cv2
 import numpy as np
 import os
 import sys
 import tensorflow as tf
-from tensorflow.keras import layers
+
 from sklearn.model_selection import train_test_split
 
 EPOCHS = 10
@@ -11,6 +11,7 @@ IMG_WIDTH = 30
 IMG_HEIGHT = 30
 NUM_CATEGORIES = 43
 TEST_SIZE = 0.4
+
 
 def main():
 
@@ -27,6 +28,8 @@ def main():
         np.array(images), np.array(labels), test_size=TEST_SIZE
     )
 
+    x_train, x_test = x_train / 255.0, x_test / 255.0
+
     # Get a compiled neural network
     model = get_model()
 
@@ -42,60 +45,70 @@ def main():
         model.save(filename)
         print(f"Model saved to {filename}.")
 
+
 def load_data(data_dir):
+    """
+    Load image data from directory `data_dir`.
+
+    Assume `data_dir` has one directory named after each category, numbered
+    0 through NUM_CATEGORIES - 1. Inside each category directory will be some
+    number of image files.
+
+    Return tuple `(images, labels)`. `images` should be a list of all
+    of the images in the data directory, where each image is formatted as a
+    numpy ndarray with dimensions IMG_WIDTH x IMG_HEIGHT x 3. `labels` should
+    be a list of integer labels, representing the categories for each of the
+    corresponding `images`.
+    """
+
     images = []
     labels = []
 
-    os_data_dir = os.path.abspath(data_dir)
+    # iterate through data set directories
+    for directory in os.listdir(data_dir):
+        # iterate through single image files
+        print(f"Started loading files from {directory} directory")
+        for file in os.listdir(os.path.join(data_dir, directory)):
+            image = cv2.imread(os.path.join(data_dir, directory, file))
+            resized = cv2.resize(image, (IMG_WIDTH, IMG_HEIGHT))
+            images.append(resized)
+            labels.append(int(directory))
+        print(f"Ended loading files from {directory} directory")
+    return images, labels
 
-    # Traverse the directory tree
-    for (dir_path, dir_names, files) in os.walk(os_data_dir):
-        
-        # Skip loading the current dir
-        if dir_path == data_dir:
-            continue
-        
-        # Ensure the directory name is a valid integer label
-        label = os.path.basename(dir_path)
-        if not label.isdigit() or int(label) >= NUM_CATEGORIES:
-            continue
-
-        # Process images in each folder
-        for file_name in files:
-            try:
-                img = cv.imread(os.path.join(dir_path, file_name), 1)
-                res = cv.resize(img, (IMG_WIDTH, IMG_HEIGHT), interpolation=cv.INTER_AREA)
-                images.append(res)
-                labels.append(int(label))
-            except Exception as e:
-                print(str(e))
-    
-    print(f"Processed {len(images)} images of {len(set(labels))} different types.")
-    return (images, labels)
 
 def get_model():
-    model = tf.keras.models.Sequential(
-        [
-            # Convolutional layer. Learn 32 filters using a 3x3 kernel.
-            layers.Conv2D(32, (3, 3), activation="relu", input_shape=(IMG_WIDTH, IMG_HEIGHT, 3)),
-            layers.MaxPool2D((2, 2)),
+    """
+    Returns a compiled convolutional neural network model. Assume that the
+    `input_shape` of the first layer is `(IMG_WIDTH, IMG_HEIGHT, 3)`.
+    The output layer should have `NUM_CATEGORIES` units, one for each category.
+    """
+    model = tf.keras.models.Sequential([
+        # Convolutional layer. Learn 32 filters using a 3x3 kernel
+        tf.keras.layers.Conv2D(
+            32, (3, 3), activation="relu", input_shape=(IMG_WIDTH, IMG_HEIGHT, 3)
+        ),
 
-            # Apply second convolution and pooling
-            layers.Conv2D(32, (2, 2), activation="relu"),
-            layers.MaxPool2D((2, 2)),
+        # Max-pooling layer, using 2x2 pool size
+        tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
 
-            # Flatten units for classification.
-            layers.Flatten(),
+        tf.keras.layers.Conv2D(
+            32, (3, 3), activation="relu", input_shape=(IMG_WIDTH, IMG_HEIGHT, 3)
+        ),
 
-            # Add hidden layers with dropout
-            layers.Dense(128, activation="relu"),
-            layers.Dense(128, activation="relu"),
-            layers.Dropout(0.5),
+        # Max-pooling layer, using 2x2 pool size
+        tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
 
-            # Output layer with units for all categories
-            layers.Dense(NUM_CATEGORIES, activation="softmax")
-        ]
-    )
+        # Flatten units
+        tf.keras.layers.Flatten(),
+
+        # Add a hidden layer with dropout
+        tf.keras.layers.Dense(128, activation="relu"),
+        tf.keras.layers.Dropout(0.5),
+
+        # Add an output layer with output units for all 10 digits
+        tf.keras.layers.Dense(NUM_CATEGORIES, activation="softmax")
+    ])
 
     model.compile(
         optimizer="adam",
@@ -103,7 +116,10 @@ def get_model():
         metrics=["accuracy"]
     )
 
+    model.summary()
+
     return model
+
 
 if __name__ == "__main__":
     main()
