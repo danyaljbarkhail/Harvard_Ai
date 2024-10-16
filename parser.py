@@ -1,8 +1,11 @@
 import nltk
 import sys
 
-
-nltk.download('punkt')
+# Ensure punkt data is available
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
 
 TERMINALS = """
 Adj -> "country" | "dreadful" | "enigmatical" | "little" | "moist" | "red"
@@ -18,10 +21,10 @@ V -> "smiled" | "tell" | "were"
 """
 
 NONTERMINALS = """
-S -> N V | NP VP | VP NP | S NP | S P NP | S P S | S Conj S | 
+S -> N V | NP VP | VP NP | S NP | S P NP | S P S | S Conj S
 AA -> Adj | Adv | Adj AA | Adv AA
 VP -> V | V P | V AA | Adv V
-NP -> N | P NP | Det N | Det N AA | Det AA N | AA N 
+NP -> N | P NP | Det N | Det N AA | Det AA N | AA N
 """
 
 grammar = nltk.CFG.fromstring(NONTERMINALS + TERMINALS)
@@ -29,7 +32,6 @@ parser = nltk.ChartParser(grammar)
 
 
 def main():
-
     # If filename specified, read sentence from file
     if len(sys.argv) == 2:
         with open(sys.argv[1]) as f:
@@ -82,19 +84,14 @@ def np_chunk(tree):
     """
     np_chunks = []
 
-    def traverse(t):
-        if isinstance(t, str):
-            return
+    for subtree in tree.subtrees():
+        # Check if the subtree is a noun phrase and does not contain another noun phrase
+        if subtree.label() == "NP" and not any(child.label() == "NP" for child in subtree.subtrees(lambda t: t != subtree)):
+            np_chunks.append(subtree)
 
-        if hasattr(t, 'label') and t.label() == 'NP' and not any(child.label() == 'NP' for child in t):
-            np_chunks.append(t)
-
-        for child in t:
-            traverse(child)
-
-    traverse(tree)
     return np_chunks
 
 
 if __name__ == "__main__":
     main()
+
