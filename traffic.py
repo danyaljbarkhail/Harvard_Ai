@@ -22,7 +22,7 @@ def main():
     images, labels = load_data(sys.argv[1])
 
     # Split data into training and testing sets
-    labels = tf.keras.utils.to_categorical(labels, NUM_CATEGORIES)
+    labels = tf.keras.utils.to_categorical(labels)
     x_train, x_test, y_train, y_test = train_test_split(
         np.array(images), np.array(labels), test_size=TEST_SIZE
     )
@@ -42,83 +42,60 @@ def main():
         model.save(filename)
         print(f"Model saved to {filename}.")
 
-
 def load_data(data_dir):
-    """
-    Load image data from directory `data_dir`.
-
-    Assume `data_dir` has one directory named after each category, numbered
-    0 through NUM_CATEGORIES - 1. Inside each category directory will be some
-    number of image files.
-
-    Return tuple `(images, labels)`. `images` should be a list of all
-    of the images in the data directory, where each image is formatted as a
-    numpy ndarray with dimensions IMG_WIDTH x IMG_HEIGHT x 3. `labels` should
-    be a list of integer labels, representing the categories for each of the
-    corresponding `images`.
-    """
     images = []
     labels = []
 
-    # Traverse through each category directory
-    for label in range(NUM_CATEGORIES):
-        category_path = os.path.join(data_dir, str(label))
+    os_data_dir = os.path.abspath(data_dir)
 
-        # Check if the category path exists
-        if not os.path.exists(category_path):
-            print(f"Warning: {category_path} does not exist.")
+    # Traverse the directory tree
+    for (dir_path, dir_names, files) in os.walk(os_data_dir):
+        
+        # Skip loading the current dir
+        if dir_path == data_dir:
+            continue
+        
+        # Ensure the directory name is a valid integer label
+        label = os.path.basename(dir_path)
+        if not label.isdigit() or int(label) >= NUM_CATEGORIES:
             continue
 
-        # Iterate through all files in the category directory
-        for file_name in os.listdir(category_path):
-            file_path = os.path.join(category_path, file_name)
+        # Process images in each folder
+        for file_name in files:
             try:
-                img = cv.imread(file_path)
-                if img is None:
-                    continue
-
-                # Resize image to desired size
-                img = cv.resize(img, (IMG_WIDTH, IMG_HEIGHT), interpolation=cv.INTER_AREA)
-                images.append(img)
-                labels.append(label)
-
+                img = cv.imread(os.path.join(dir_path, file_name), 1)
+                res = cv.resize(img, (IMG_WIDTH, IMG_HEIGHT), interpolation=cv.INTER_AREA)
+                images.append(res)
+                labels.append(int(label))
             except Exception as e:
-                print(f"Error processing {file_path}: {e}")
+                print(str(e))
     
     print(f"Processed {len(images)} images of {len(set(labels))} different types.")
-
     return (images, labels)
 
-
 def get_model():
-    """
-    Returns a compiled convolutional neural network model. Assume that the
-    `input_shape` of the first layer is `(IMG_WIDTH, IMG_HEIGHT, 3)`.
-    The output layer should have `NUM_CATEGORIES` units, one for each category.
-    """
-    model = tf.keras.models.Sequential([
-        # Convolutional layer. Learn 32 filters using a 3x3 kernel.
-        layers.Conv2D(32, (3, 3), activation="relu", input_shape=(IMG_WIDTH, IMG_HEIGHT, 3)),
+    model = tf.keras.models.Sequential(
+        [
+            # Convolutional layer. Learn 32 filters using a 3x3 kernel.
+            layers.Conv2D(32, (3, 3), activation="relu", input_shape=(IMG_WIDTH, IMG_HEIGHT, 3)),
+            layers.MaxPool2D((2, 2)),
 
-        # Max-pooling layer, using 2x2 pool size
-        layers.MaxPool2D((2, 2)),
+            # Apply second convolution and pooling
+            layers.Conv2D(32, (2, 2), activation="relu"),
+            layers.MaxPool2D((2, 2)),
 
-        # Second convolution and pooling
-        layers.Conv2D(32, (2, 2), activation="relu"),
-        layers.MaxPool2D((2, 2)),
+            # Flatten units for classification.
+            layers.Flatten(),
 
-        # Flatten units for classification
-        layers.Flatten(),
+            # Add hidden layers with dropout
+            layers.Dense(128, activation="relu"),
+            layers.Dense(128, activation="relu"),
+            layers.Dropout(0.5),
 
-        # Add hidden layers with dropout
-        layers.Dense(128, activation="relu"),
-        layers.Dropout(0.5),
-        layers.Dense(128, activation="relu"),
-        layers.Dropout(0.5),
-
-        # Output layer with units for all categories
-        layers.Dense(NUM_CATEGORIES, activation="softmax")
-    ])
+            # Output layer with units for all categories
+            layers.Dense(NUM_CATEGORIES, activation="softmax")
+        ]
+    )
 
     model.compile(
         optimizer="adam",
@@ -127,7 +104,6 @@ def get_model():
     )
 
     return model
-
 
 if __name__ == "__main__":
     main()
