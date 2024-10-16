@@ -11,9 +11,9 @@ def get_mask_token_index(mask_token_id, inputs):
         inputs: The tokenized inputs which contain 'input_ids'.
         
     Returns:
-        The index of the [MASK] token in the inputs.
+        The index of the [MASK] token in the inputs, or None if not found.
     """
-    token_ids = inputs['input_ids'][0].numpy()
+    token_ids = inputs['input_ids'][0].detach().cpu().numpy() if torch.is_tensor(inputs['input_ids'][0]) else inputs['input_ids'][0]
     for idx, token_id in enumerate(token_ids):
         if token_id == mask_token_id:
             return idx
@@ -30,7 +30,7 @@ def get_color_for_attention_score(attention_score):
     Returns:
         A tuple representing the RGB color (gray_value, gray_value, gray_value).
     """
-    gray_value = int((1 - attention_score) * 255)
+    gray_value = int((1 - min(max(attention_score, 0), 1)) * 255)
     return (gray_value, gray_value, gray_value)
 
 # Example: Function to visualize attentions
@@ -69,7 +69,7 @@ def visualize_attention_for_head(layer, head, tokens, attention_scores):
     # Just printing attention matrix for simplicity
     print(f"Attention scores for layer {layer}, head {head}:")
     for i, token in enumerate(tokens):
-        attention_for_token = attention_scores[i].detach().numpy()
+        attention_for_token = attention_scores[i].detach().cpu().numpy() if torch.is_tensor(attention_scores[i]) else attention_scores[i]
         color = get_color_for_attention_score(np.mean(attention_for_token))
         print(f"  {token}: {attention_for_token} -> Color: {color}")
 
